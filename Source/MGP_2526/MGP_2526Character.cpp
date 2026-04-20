@@ -14,6 +14,7 @@
 
 AMGP_2526Character::AMGP_2526Character()
 {
+	int text = 0;
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
@@ -56,8 +57,8 @@ void AMGP_2526Character::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
 		
 		// Jumping
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AMGP_2526Character::DoJumpStart);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AMGP_2526Character::DoJumpEnd);
 
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMGP_2526Character::Move);
@@ -124,10 +125,19 @@ void AMGP_2526Character::DoJumpStart()
 {
 	// signal the character to jump
 	Jump();
+
+	// If the player isnt jumping, set the boolean to true to block other processes
+	if (!isJumping)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Jumping"));
+		isJumping = true;
+	}
 }
 
 void AMGP_2526Character::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
+
+	// Reset the boolean to unblock certain processes
 }
