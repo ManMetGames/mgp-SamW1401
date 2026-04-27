@@ -32,7 +32,11 @@ class AMGP_2526Character : public ACharacter
 	UCameraComponent* FollowCamera;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	bool isJumping = false;
+	class UBoxComponent* wallRunBox;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	int WallRunCheckDistance;
+
 	
 protected:
 
@@ -58,6 +62,9 @@ public:
 	AMGP_2526Character();	
 
 protected:
+	virtual bool LineTrace(FHitResult& ray1Out);
+
+	virtual void Tick(float DeltaTime) override;
 
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -69,6 +76,8 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+
 
 public:
 
@@ -87,6 +96,9 @@ public:
 	/** Handles jump pressed inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
+
+	UFUNCTION()
+	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 public:
 

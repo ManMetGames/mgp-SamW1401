@@ -4,6 +4,7 @@
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
@@ -14,9 +15,20 @@
 
 AMGP_2526Character::AMGP_2526Character()
 {
-	int text = 0;
+	WallRunCheckDistance = 5;
+
+	FHitResult raycast1HitResult;
+	FHitResult raycast2HitResult;
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+
+	// Create  and configure the wall run collider
+	wallRunBox = CreateDefaultSubobject<UBoxComponent>(TEXT("Wall Run Check Trigger"));
+	wallRunBox->SetupAttachment(RootComponent);
+	wallRunBox->SetBoxExtent(FVector(1.f, 1.f, 1.f),true);
+
+
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
@@ -51,6 +63,14 @@ AMGP_2526Character::AMGP_2526Character()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+void AMGP_2526Character::Tick(float DeltaTime)
+{
+	// check yu need to enable ticking of the object
+	Super::Tick(DeltaTime);
+	FHitResult ray1Out;
+	LineTrace(ray1Out);
+}
+
 void AMGP_2526Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Set up action bindings
@@ -70,6 +90,29 @@ void AMGP_2526Character::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	else
 	{
 		UE_LOG(LogMGP_2526, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
+	}
+}
+
+// --------------------------------------------------------------------- WallRun Detection Line Trace ------------------------------------------------------------------------------
+bool AMGP_2526Character::LineTrace(FHitResult& ray1Out)
+{
+	// Find the start and end positions for the 2 raycasts
+	FVector Raycast1StartLocation = RootComponent->GetComponentLocation();
+	FVector Raycast1EndLocation = Raycast1StartLocation + (RootComponent->GetRightVector() * WallRunCheckDistance);
+
+	// Ignore collision with the actual player
+	FCollisionQueryParams ignoreParameters;
+	ignoreParameters.AddIgnoredActor(GetOwner());
+
+
+	if (GetWorld()->LineTraceSingleByChannel(ray1Out, Raycast1StartLocation, Raycast1EndLocation, ECC_Visibility, ignoreParameters))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Collided"));
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }
 
@@ -125,13 +168,6 @@ void AMGP_2526Character::DoJumpStart()
 {
 	// signal the character to jump
 	Jump();
-
-	// If the player isnt jumping, set the boolean to true to block other processes
-	if (!isJumping)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Jumping"));
-		isJumping = true;
-	}
 }
 
 void AMGP_2526Character::DoJumpEnd()
