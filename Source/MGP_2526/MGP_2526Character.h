@@ -3,8 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/World.h"
+#include "DrawDebugHelpers.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "CollisionQueryParams.h"
 #include "MGP_2526Character.generated.h"
 
 class USpringArmComponent;
@@ -31,11 +34,28 @@ class AMGP_2526Character : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 
+	// --------------------------------------------------------------------------------------------------------/
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	class UBoxComponent* wallRunBox;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	int WallRunCheckDistance;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	FVector traceStartingPosition;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	FVector endPointRight;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	FVector endPointLeft;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	FHitResult rayHitRight;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	FHitResult rayHitLeft;
 
 	
 protected:
@@ -62,9 +82,18 @@ public:
 	AMGP_2526Character();	
 
 protected:
-	virtual bool LineTrace(FHitResult& ray1Out);
 
+	// My Added Functions
+
+	// Called for Wall Detection
+	virtual void DetectWallsLineTrace();
+
+	// Update
 	virtual void Tick(float DeltaTime) override;
+
+	// Start
+	virtual void BeginPlay() override;
+
 
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -96,9 +125,11 @@ public:
 	/** Handles jump pressed inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
+	/*
 
 	UFUNCTION()
 	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+	*/
 
 public:
 
