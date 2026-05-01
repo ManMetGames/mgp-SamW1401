@@ -20,13 +20,6 @@ AMGP_2526Character::AMGP_2526Character()
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
-
-	// Create  and configure the wall run collider
-	wallRunBox = CreateDefaultSubobject<UBoxComponent>(TEXT("Wall Run Check Trigger"));
-	wallRunBox->SetupAttachment(RootComponent);
-	wallRunBox->SetBoxExtent(FVector(1.f, 1.f, 1.f),true);
-
-
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
@@ -65,9 +58,6 @@ void AMGP_2526Character::Tick(float DeltaTime)
 {
 	// check yu need to enable ticking of the object
 	Super::Tick(DeltaTime);
-
-
-
 
 
 
@@ -145,8 +135,8 @@ void AMGP_2526Character::DetectWallsLineTrace()
 
 	// ******* MIGHT CHANGE ECC_VISIBILITY TO ONLY HIT WALLS AT A LATER DATE, KINDA LIKE TAGS IN UNITY, PROBABLY THE BEST BET TO NOT WALL RUN ON STAIRS OR SOMETHING *******
 
-	bool traceHitRight = GetWorld()->LineTraceSingleByChannel(rayHitRight, traceStartingPosition,endPointRight,ECC_Visibility, ignoreLinetraceParameters);
-	bool traceHitLeft = GetWorld()->LineTraceSingleByChannel(rayHitLeft, traceStartingPosition, endPointLeft, ECC_Visibility, ignoreLinetraceParameters);
+	bool traceHitRight = GetWorld()->LineTraceSingleByChannel(rayHitRight, traceStartingPosition,endPointRight,ECC_GameTraceChannel2, ignoreLinetraceParameters);
+	bool traceHitLeft = GetWorld()->LineTraceSingleByChannel(rayHitLeft, traceStartingPosition, endPointLeft, ECC_GameTraceChannel2, ignoreLinetraceParameters);
 
 	if (traceHitRight && traceHitLeft)
 	{

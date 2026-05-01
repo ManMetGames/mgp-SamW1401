@@ -34,29 +34,29 @@ class AMGP_2526Character : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 
-	// --------------------------------------------------------------------------------------------------------/
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	class UBoxComponent* wallRunBox;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	// ----------------------------------------------- Custom Variables --------------------------------------------------------- //
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	int WallRunCheckDistance;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
 	FVector traceStartingPosition;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
 	FVector endPointRight;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
 	FVector endPointLeft;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
 	FHitResult rayHitRight;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
 	FHitResult rayHitLeft;
 
+	// ------------------------------------------------------------------------------------------------------------------------------ //
 	
 protected:
 
@@ -83,7 +83,7 @@ public:
 
 protected:
 
-	// My Added Functions
+	// --- My Added Functions ---
 
 	// Called for Wall Detection
 	virtual void DetectWallsLineTrace();
