@@ -59,36 +59,12 @@ void AMGP_2526Character::Tick(float DeltaTime)
 	// check yu need to enable ticking of the object
 	Super::Tick(DeltaTime);
 
+	// Find the Velocity and Speed to determine wether or not the player has the speed for wallrunning, or to cancel a current wallrun
+	currentVelocity = GetCharacterMovement()->Velocity;
+	currentSpeed = currentVelocity.Size();
 
-
-
-
-
-
-
-
-
-
-	// ------------------------------------------- Line Tracing -------------------------------------------
-
-	// Get the starting position for the Linetraces
-	traceStartingPosition = GetActorLocation();
-
-	// Offset the trace height to not capture stairs, or cover etc. as often
-	traceStartingPosition.Z += 25.f;
-
-	// Get the right vector to use for finding the side offset for the endpoints on the traces
-	FVector rightVector = GetActorRightVector();
-	endPointRight = traceStartingPosition + (rightVector * WallRunCheckDistance);
-	// Subtract from the right to find the left, left does not have a get vector
-	endPointLeft = traceStartingPosition - (rightVector * WallRunCheckDistance);
-
+	// ------------------------------------------- Wall Running -------------------------------------------
 	DetectWallsLineTrace();
-
-	// For debugging purposes ( the float is lifetime )
-	DrawDebugLine(GetWorld(), traceStartingPosition, endPointRight, FColor::Red, false, 0.01f);
-	DrawDebugLine(GetWorld(), traceStartingPosition, endPointLeft, FColor::Red, false, 0.01f);
-
 	// -----------------------------------------------------------------------------------------------------
 }
 
@@ -96,8 +72,30 @@ void AMGP_2526Character::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Variables Used for wall detection via trace
-	WallRunCheckDistance = 75;
+	WallRunCheckDistance = 50;
+
+	// Set the minimum speed high enough that you need to be moving sideways and cant just jump straight up
+	wallRunMinSpeed = 175;
+
+	// Assign charMove to this actors Movement controller, saves me writing the function every time and makes it more efficient cause it doesnt have to run the function EVERY TIME
+	charMove = GetCharacterMovement();
+
+	// Grounded Friction - Base Values
+	// A factor that all friction coefficients are multiplied by to find the actual friction multiplier, lower = less
+	charMove->BrakingFrictionFactor = 0.1f;
+	charMove->GroundFriction = 2.5f;
+
+	// Air Friction - Base Values
+	charMove->FallingLateralFriction = 0.01f;
+	charMove->BrakingDecelerationFalling = 0.1f;
+
+	// Jumping Strength
+	charMove->JumpZVelocity = 650.f;
+
+	// Max Speed
+	charMove->MaxWalkSpeed  = 700.f;
+
+	isWallrunning = false;
 }
 
 void AMGP_2526Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -127,31 +125,107 @@ void AMGP_2526Character::DetectWallsLineTrace()
 {
 	// Do Both line traces then put wether or not they hit into a boolean. Check both booleans, if either are true, wallrun on it, if both, check closest, if none, do nothing.
 
+	// Get Starting positions
+	traceStartingPosition = GetActorLocation();
+
+	// Copy the starting position and just move it down for grounded detection
+	FVector groundedEndVector = traceStartingPosition;
+	groundedEndVector.Z -= 100.f;
+
+	traceStartingPosition.Z += 25.f;
+
+	FVector rightVector = GetActorRightVector();
+	endPointRight = traceStartingPosition + (rightVector * WallRunCheckDistance);
+	// Subtract from the right to find the left, left does not have a get vector
+	endPointLeft = traceStartingPosition - (rightVector * WallRunCheckDistance);
 
 	// I know this should be done in the header, but the Unreal Header Tool really didnt like me putting it in there for some reason
 	FCollisionQueryParams ignoreLinetraceParameters;
 	// Ignore the player for the trace
 	ignoreLinetraceParameters.AddIgnoredActor(this);
 
-	// ******* MIGHT CHANGE ECC_VISIBILITY TO ONLY HIT WALLS AT A LATER DATE, KINDA LIKE TAGS IN UNITY, PROBABLY THE BEST BET TO NOT WALL RUN ON STAIRS OR SOMETHING *******
+	traceHitGrounded = GetWorld()->LineTraceSingleByChannel(rayHitGrounded, traceStartingPosition, groundedEndVector, ECC_Visibility, ignoreLinetraceParameters);
 
-	bool traceHitRight = GetWorld()->LineTraceSingleByChannel(rayHitRight, traceStartingPosition,endPointRight,ECC_GameTraceChannel2, ignoreLinetraceParameters);
-	bool traceHitLeft = GetWorld()->LineTraceSingleByChannel(rayHitLeft, traceStartingPosition, endPointLeft, ECC_GameTraceChannel2, ignoreLinetraceParameters);
-
-	if (traceHitRight && traceHitLeft)
+	//Check when not grounded, if not grounded check if theres a wall to run on
+	if (!traceHitGrounded&&currentSpeed>wallRunMinSpeed)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Both Traces hit"));
+		// Game Trace channel 2 is the custom trace channel "WallRunTraceChannel"
+		traceHitRight = GetWorld()->LineTraceSingleByChannel(rayHitRight, traceStartingPosition, endPointRight, ECC_GameTraceChannel2, ignoreLinetraceParameters);
+		traceHitLeft = GetWorld()->LineTraceSingleByChannel(rayHitLeft, traceStartingPosition, endPointLeft, ECC_GameTraceChannel2, ignoreLinetraceParameters);
+	}
+	else
+	{
+		// This catches the times when the player hugs a wall and lands, keeping it set to true after landing no matter if theres a wall or not
+		traceHitRight = false;
+		traceHitLeft = false;
 	}
 
-	else if (traceHitRight)
+
+
+	// *** Temporary ***
+	FColor bot = FColor::Red;
+	FColor right = FColor::Red;
+	FColor left = FColor::Red;
+	if (traceHitGrounded)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Right Trace hit"));
+		// *** Temporary ***
+		bot = FColor::Green;
 	}
 
-	else if (traceHitLeft)
+	if ((traceHitRight && traceHitLeft)&& !isWallrunning)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Left Trace hit"));
+		// *** Temporary ***
+		right = FColor::Cyan;
+		left = FColor::Cyan;
+
+		// Ray Hit results contain a variable called time, showing how far along they were when they collided. the smaller time would be the closer wall so if both collide, use the smaller time when passing it into the WallRunVector function
+		// Now Comes the complicated maths bit YAY
+		// pass the normal of the collided object, think of it like a vector that defines the plane of the wall and always points perpendicular to it ( Like always up )
+		if (rayHitRight.Time > rayHitLeft.Time)
+		{
+			StartWallRun(rayHitRight.ImpactNormal);
+		}
+		else
+		{
+			StartWallRun(rayHitLeft.ImpactNormal);
+		}
 	}
+
+	else if (traceHitRight&& !isWallrunning)
+	{
+		// *** Temporary ***
+		right = FColor::Green;
+		StartWallRun(rayHitRight.ImpactNormal);
+	}
+
+	else if (traceHitLeft&&!isWallrunning)
+	{
+		// *** Temporary ***
+		left = FColor::Green;
+		StartWallRun(rayHitLeft.ImpactNormal);
+	}
+	// *** Temporary ***
+	// Could make this a debug option, might be nicer
+	// For debugging purposes ( the float is lifetime )
+	DrawDebugLine(GetWorld(), traceStartingPosition, endPointRight, right, false, 0.01f);
+	DrawDebugLine(GetWorld(), traceStartingPosition, endPointLeft, left, false, 0.01f);
+	DrawDebugLine(GetWorld(), traceStartingPosition, groundedEndVector, bot, false, 0.01f);
+}
+
+void AMGP_2526Character::StartWallRun(FVector wallNormal)
+{
+	// Makes sure theres no 0's that break the division or multiplication
+	FVector safeWallNormal = wallNormal.GetSafeNormal();
+	// Right, So first we do the DotProduct of the current player velocity vector and wall normal vector to give us the vector of how alligned we are to the wall, and then minusing the current velocity from all of this gives only the movement along the wall, this is applied to the player and
+	// this leaves us with only the velocity parralel to the wall. After we apply that velicty to the player I can also apply a force to them to give it a quick boost along the wall
+	wallRunVelocity = currentVelocity - FVector::DotProduct(currentVelocity, safeWallNormal) * safeWallNormal;
+	charMove->Velocity = wallRunVelocity;
+	// Do all of this once, then move onto the function to keep the player moving in that direction and reset jumps etc
+}
+
+void AMGP_2526Character::EndWallRun()
+{
+
 }
 
 void AMGP_2526Character::Move(const FInputActionValue& Value)

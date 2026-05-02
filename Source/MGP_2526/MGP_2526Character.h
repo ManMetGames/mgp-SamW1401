@@ -37,25 +37,53 @@ class AMGP_2526Character : public ACharacter
 
 
 	// ----------------------------------------------- Custom Variables --------------------------------------------------------- //
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Character Controller Components", meta = (AllowPrivateAccess = "true"))
+	UCharacterMovementComponent* charMove;
+
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	int WallRunCheckDistance;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	float wallRunMinSpeed;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	bool isWallrunning;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	FVector currentVelocity;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	FVector wallRunVelocity;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	float currentSpeed;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
 	FVector traceStartingPosition;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
 	FVector endPointRight;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
 	FVector endPointLeft;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
 	FHitResult rayHitRight;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variable", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
 	FHitResult rayHitLeft;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
+	FHitResult rayHitGrounded;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
+	bool traceHitRight;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
+	bool traceHitLeft;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
+	bool traceHitGrounded;
 	// ------------------------------------------------------------------------------------------------------------------------------ //
 	
 protected:
@@ -88,12 +116,18 @@ protected:
 	// Called for Wall Detection
 	virtual void DetectWallsLineTrace();
 
+	// Cross Product to find the vector that moves in parrallel of the wallrun surface
+	// Pass in the Normal Vector of the collided plane that the player will run across
+	virtual void StartWallRun(FVector wallNormal);
+
 	// Update
 	virtual void Tick(float DeltaTime) override;
 
 	// Start
 	virtual void BeginPlay() override;
 
+	//Reset all the variables for ending the wall run
+	virtual void EndWallRun();
 
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -125,11 +159,6 @@ public:
 	/** Handles jump pressed inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
-	/*
-
-	UFUNCTION()
-	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
-	*/
 
 public:
 
