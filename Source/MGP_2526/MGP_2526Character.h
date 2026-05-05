@@ -40,7 +40,11 @@ class AMGP_2526Character : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Character Controller Components", meta = (AllowPrivateAccess = "true"))
 	UCharacterMovementComponent* charMove;
 	FVector currentWallNormal;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Trackers", meta = (AllowPrivateAccess = "true"))
 	FString previousWallName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Trackers", meta = (AllowPrivateAccess = "true"))
 	AActor* currentWallObject;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
