@@ -48,13 +48,20 @@ class AMGP_2526Character : public ACharacter
 	float wallRunMinSpeed;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	float launchStrength;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	bool isWallrunning;
+
+	FVector currentWallNormal;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	FVector currentVelocity;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	FVector wallRunVelocity;
+
+
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	float currentSpeed;
@@ -116,9 +123,13 @@ protected:
 	// Called for Wall Detection
 	virtual void DetectWallsLineTrace();
 
-	// Cross Product to find the vector that moves in parrallel of the wallrun surface
-	// Pass in the Normal Vector of the collided plane that the player will run across
-	virtual void StartWallRun(FVector wallNormal);
+	// Pass in the Normal Vector of the collided plane that the player will run across, locks movement to only along that plane
+	virtual void WallRun(FVector wallNormal);
+
+	virtual void MaintainWallRun();
+
+	// Add a launch force to the player away from the wall
+	virtual void WallJump(FVector wallNormal);
 
 	// Update
 	virtual void Tick(float DeltaTime) override;
@@ -128,6 +139,12 @@ protected:
 
 	//Reset all the variables for ending the wall run
 	virtual void EndWallRun();
+
+
+
+
+
+
 
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;

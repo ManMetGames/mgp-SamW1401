@@ -63,6 +63,11 @@ void AMGP_2526Character::Tick(float DeltaTime)
 	currentVelocity = GetCharacterMovement()->Velocity;
 	currentSpeed = currentVelocity.Size();
 
+	if (isWallrunning)
+	{
+		MaintainWallRun();
+	}
+
 	// ------------------------------------------- Wall Running -------------------------------------------
 	DetectWallsLineTrace();
 	// -----------------------------------------------------------------------------------------------------
@@ -72,7 +77,7 @@ void AMGP_2526Character::BeginPlay()
 {
 	Super::BeginPlay();
 
-	WallRunCheckDistance = 50;
+	WallRunCheckDistance = 75;
 
 	// Set the minimum speed high enough that you need to be moving sideways and cant just jump straight up
 	wallRunMinSpeed = 175;
@@ -96,6 +101,8 @@ void AMGP_2526Character::BeginPlay()
 	charMove->MaxWalkSpeed  = 700.f;
 
 	isWallrunning = false;
+
+	launchStrength = 500.f;
 }
 
 void AMGP_2526Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -130,7 +137,7 @@ void AMGP_2526Character::DetectWallsLineTrace()
 
 	// Copy the starting position and just move it down for grounded detection
 	FVector groundedEndVector = traceStartingPosition;
-	groundedEndVector.Z -= 100.f;
+	groundedEndVector.Z -= 93.f;
 
 	traceStartingPosition.Z += 25.f;
 
@@ -146,21 +153,18 @@ void AMGP_2526Character::DetectWallsLineTrace()
 
 	traceHitGrounded = GetWorld()->LineTraceSingleByChannel(rayHitGrounded, traceStartingPosition, groundedEndVector, ECC_Visibility, ignoreLinetraceParameters);
 
+	if (traceHitGrounded)
+	{
+		EndWallRun();
+	}
+
 	//Check when not grounded, if not grounded check if theres a wall to run on
-	if (!traceHitGrounded&&currentSpeed>wallRunMinSpeed)
+	else if (!traceHitGrounded&&currentSpeed>wallRunMinSpeed)
 	{
 		// Game Trace channel 2 is the custom trace channel "WallRunTraceChannel"
 		traceHitRight = GetWorld()->LineTraceSingleByChannel(rayHitRight, traceStartingPosition, endPointRight, ECC_GameTraceChannel2, ignoreLinetraceParameters);
 		traceHitLeft = GetWorld()->LineTraceSingleByChannel(rayHitLeft, traceStartingPosition, endPointLeft, ECC_GameTraceChannel2, ignoreLinetraceParameters);
 	}
-	else
-	{
-		// This catches the times when the player hugs a wall and lands, keeping it set to true after landing no matter if theres a wall or not
-		traceHitRight = false;
-		traceHitLeft = false;
-	}
-
-
 
 	// *** Temporary ***
 	FColor bot = FColor::Red;
@@ -172,7 +176,7 @@ void AMGP_2526Character::DetectWallsLineTrace()
 		bot = FColor::Green;
 	}
 
-	if ((traceHitRight && traceHitLeft)&& !isWallrunning)
+	if (traceHitRight && traceHitLeft)
 	{
 		// *** Temporary ***
 		right = FColor::Cyan;
@@ -181,29 +185,30 @@ void AMGP_2526Character::DetectWallsLineTrace()
 		// Ray Hit results contain a variable called time, showing how far along they were when they collided. the smaller time would be the closer wall so if both collide, use the smaller time when passing it into the WallRunVector function
 		// Now Comes the complicated maths bit YAY
 		// pass the normal of the collided object, think of it like a vector that defines the plane of the wall and always points perpendicular to it ( Like always up )
-		if (rayHitRight.Time > rayHitLeft.Time)
+		if ((rayHitRight.Time > rayHitLeft.Time)&&!isWallrunning)
 		{
-			StartWallRun(rayHitRight.ImpactNormal);
+			WallRun(rayHitRight.ImpactNormal);
 		}
 		else
 		{
-			StartWallRun(rayHitLeft.ImpactNormal);
+			WallRun(rayHitLeft.ImpactNormal);
 		}
 	}
 
-	else if (traceHitRight&& !isWallrunning)
+	else if (traceHitRight&&!isWallrunning)
 	{
 		// *** Temporary ***
 		right = FColor::Green;
-		StartWallRun(rayHitRight.ImpactNormal);
+		WallRun(rayHitRight.ImpactNormal);
 	}
 
 	else if (traceHitLeft&&!isWallrunning)
 	{
 		// *** Temporary ***
 		left = FColor::Green;
-		StartWallRun(rayHitLeft.ImpactNormal);
+		WallRun(rayHitLeft.ImpactNormal);
 	}
+
 	// *** Temporary ***
 	// Could make this a debug option, might be nicer
 	// For debugging purposes ( the float is lifetime )
@@ -212,20 +217,67 @@ void AMGP_2526Character::DetectWallsLineTrace()
 	DrawDebugLine(GetWorld(), traceStartingPosition, groundedEndVector, bot, false, 0.01f);
 }
 
-void AMGP_2526Character::StartWallRun(FVector wallNormal)
+void AMGP_2526Character::WallRun(FVector wallNormal)
 {
-	// Makes sure theres no 0's that break the division or multiplication
-	FVector safeWallNormal = wallNormal.GetSafeNormal();
-	// Right, So first we do the DotProduct of the current player velocity vector and wall normal vector to give us the vector of how alligned we are to the wall, and then minusing the current velocity from all of this gives only the movement along the wall, this is applied to the player and
-	// this leaves us with only the velocity parralel to the wall. After we apply that velicty to the player I can also apply a force to them to give it a quick boost along the wall
-	wallRunVelocity = currentVelocity - FVector::DotProduct(currentVelocity, safeWallNormal) * safeWallNormal;
-	charMove->Velocity = wallRunVelocity;
-	// Do all of this once, then move onto the function to keep the player moving in that direction and reset jumps etc
+
+	// Set the current walls normal to whatever one was collided with
+	currentWallNormal = wallNormal.GetSafeNormal();
+
+	// Get the velocity without movement into the wall
+	FVector tangentVelocity = FVector::VectorPlaneProject(currentVelocity, currentWallNormal);
+
+	// Get the cross product to figure out which direction along the normal we're moving
+	FVector tangentCrossProduct = FVector::CrossProduct(currentWallNormal, FVector::UpVector).GetSafeNormal();
+
+	if (FVector::DotProduct(tangentCrossProduct, tangentVelocity) < 0)
+	{
+		// Flip it if needed
+		tangentCrossProduct *= -1.f;
+	}
+
+
+
+	// Take the velocity of the cross product which is now pointing the same direction as us and add a boost
+	FVector forwardSpeedBoost = tangentCrossProduct * 500.f+FVector::UpVector*400.f;
+
+	// Rotate the player to face the direction of movement based on where we WILL be
+	FRotator newRotation = (tangentCrossProduct + forwardSpeedBoost).GetSafeNormal().Rotation();
+	newRotation.Pitch = 0.f;
+	newRotation.Roll = 0.f;
+	SetActorRotation(newRotation);
+
+	// Apply the boost to the velocity along the tangent of the wall
+	charMove->Velocity = tangentVelocity + forwardSpeedBoost;
+
+	isWallrunning = true;
+
 }
+
+void AMGP_2526Character::MaintainWallRun()
+{
+	// Remove movement towards or away from the wall
+	FVector wallParallelVelocity = FVector::VectorPlaneProject(currentVelocity, currentWallNormal);
+	charMove->Velocity = wallParallelVelocity;
+}
+
+
 
 void AMGP_2526Character::EndWallRun()
 {
+	// Reset all variables to allow another wall run to commence
+	isWallrunning = false;
+	charMove->bOrientRotationToMovement = true;
+	charMove->GravityScale = 1.f;
+}
 
+void AMGP_2526Character::WallJump(FVector wallNormal)
+{
+	// Move the player along the normal so they dont recollide with the same wall
+	SetActorLocation(GetActorLocation()+currentWallNormal*10);
+	FVector launchDirection = currentVelocity.GetClampedToMaxSize(1) + (wallNormal + FVector::UpVector * 1.f);
+	charMove->Velocity = FVector (0,0,0);
+	LaunchCharacter(launchDirection*launchStrength, false, false);
+	EndWallRun();
 }
 
 void AMGP_2526Character::Move(const FInputActionValue& Value)
@@ -248,21 +300,24 @@ void AMGP_2526Character::Look(const FInputActionValue& Value)
 
 void AMGP_2526Character::DoMove(float Right, float Forward)
 {
-	if (GetController() != nullptr)
+	if (!isWallrunning)
 	{
-		// find out which way is forward
-		const FRotator Rotation = GetController()->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
+		if (GetController() != nullptr)
+		{
+			// find out which way is forward
+			const FRotator Rotation = GetController()->GetControlRotation();
+			const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		// get forward vector
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+			// get forward vector
+			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+			// get right vector 
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-		// add movement 
-		AddMovementInput(ForwardDirection, Forward);
-		AddMovementInput(RightDirection, Right);
+			// add movement 
+			AddMovementInput(ForwardDirection, Forward);
+			AddMovementInput(RightDirection, Right);
+		}
 	}
 }
 
@@ -279,6 +334,12 @@ void AMGP_2526Character::DoLook(float Yaw, float Pitch)
 void AMGP_2526Character::DoJumpStart()
 {
 	// signal the character to jump
+
+	if (isWallrunning)
+	{
+		WallJump(currentWallNormal);
+	}
+
 	Jump();
 }
 
