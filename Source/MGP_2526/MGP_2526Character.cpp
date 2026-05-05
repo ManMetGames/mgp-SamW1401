@@ -63,11 +63,6 @@ void AMGP_2526Character::Tick(float DeltaTime)
 	currentVelocity = GetCharacterMovement()->Velocity;
 	currentSpeed = currentVelocity.Size();
 
-	if (isWallrunning)
-	{
-		MaintainWallRun();
-	}
-
 	// ------------------------------------------- Wall Running -------------------------------------------
 	DetectWallsLineTrace();
 	// -----------------------------------------------------------------------------------------------------
@@ -156,111 +151,92 @@ void AMGP_2526Character::DetectWallsLineTrace()
 	if (traceHitGrounded)
 	{
 		EndWallRun();
+		previousWallName = "grounded";
 	}
 
 	//Check when not grounded, if not grounded check if theres a wall to run on
-	else if (!traceHitGrounded&&currentSpeed>wallRunMinSpeed)
+	else if (!traceHitGrounded&&!isWallrunning)
 	{
 		// Game Trace channel 2 is the custom trace channel "WallRunTraceChannel"
 		traceHitRight = GetWorld()->LineTraceSingleByChannel(rayHitRight, traceStartingPosition, endPointRight, ECC_GameTraceChannel2, ignoreLinetraceParameters);
 		traceHitLeft = GetWorld()->LineTraceSingleByChannel(rayHitLeft, traceStartingPosition, endPointLeft, ECC_GameTraceChannel2, ignoreLinetraceParameters);
+
+
 	}
 
-	// *** Temporary ***
-	FColor bot = FColor::Red;
-	FColor right = FColor::Red;
-	FColor left = FColor::Red;
-	if (traceHitGrounded)
+	if ((traceHitRight && traceHitLeft) && !isWallrunning)
 	{
-		// *** Temporary ***
-		bot = FColor::Green;
-	}
-
-	if (traceHitRight && traceHitLeft)
-	{
-		// *** Temporary ***
-		right = FColor::Cyan;
-		left = FColor::Cyan;
-
 		// Ray Hit results contain a variable called time, showing how far along they were when they collided. the smaller time would be the closer wall so if both collide, use the smaller time when passing it into the WallRunVector function
 		// Now Comes the complicated maths bit YAY
 		// pass the normal of the collided object, think of it like a vector that defines the plane of the wall and always points perpendicular to it ( Like always up )
-		if ((rayHitRight.Time > rayHitLeft.Time)&&!isWallrunning)
+		if (rayHitRight.Time > rayHitLeft.Time)
 		{
+			currentWallObject = rayHitRight.GetActor();
 			WallRun(rayHitRight.ImpactNormal);
 		}
-		else
+		else if (rayHitLeft.Time>rayHitRight.Time)
 		{
+			currentWallObject = rayHitLeft.GetActor();
 			WallRun(rayHitLeft.ImpactNormal);
 		}
 	}
-
 	else if (traceHitRight&&!isWallrunning)
 	{
-		// *** Temporary ***
-		right = FColor::Green;
+		currentWallObject = rayHitRight.GetActor();
 		WallRun(rayHitRight.ImpactNormal);
 	}
-
 	else if (traceHitLeft&&!isWallrunning)
 	{
-		// *** Temporary ***
-		left = FColor::Green;
+		currentWallObject = rayHitLeft.GetActor();
 		WallRun(rayHitLeft.ImpactNormal);
 	}
-
-	// *** Temporary ***
-	// Could make this a debug option, might be nicer
-	// For debugging purposes ( the float is lifetime )
-	DrawDebugLine(GetWorld(), traceStartingPosition, endPointRight, right, false, 0.01f);
-	DrawDebugLine(GetWorld(), traceStartingPosition, endPointLeft, left, false, 0.01f);
-	DrawDebugLine(GetWorld(), traceStartingPosition, groundedEndVector, bot, false, 0.01f);
 }
+
+
+
+
+// +------------------------------------------------------------------------------------------------------------------------------+
+
+
 
 void AMGP_2526Character::WallRun(FVector wallNormal)
 {
-
-	// Set the current walls normal to whatever one was collided with
-	currentWallNormal = wallNormal.GetSafeNormal();
-
-	// Get the velocity without movement into the wall
-	FVector tangentVelocity = FVector::VectorPlaneProject(currentVelocity, currentWallNormal);
-
-	// Get the cross product to figure out which direction along the normal we're moving
-	FVector tangentCrossProduct = FVector::CrossProduct(currentWallNormal, FVector::UpVector).GetSafeNormal();
-
-	if (FVector::DotProduct(tangentCrossProduct, tangentVelocity) < 0)
+	// Only do the wall run when the wall is not the same as the previous wall
+	if (previousWallName != currentWallObject->GetName())
 	{
-		// Flip it if needed
-		tangentCrossProduct *= -1.f;
+
+		// Set the current walls normal to whatever one was collided with
+		currentWallNormal = wallNormal.GetSafeNormal();
+
+		// Get the velocity without movement into the wall
+		FVector tangentVelocity = FVector::VectorPlaneProject(currentVelocity, currentWallNormal);
+
+		// Get the cross product to figure out which direction along the normal we're moving
+		FVector tangentCrossProduct = FVector::CrossProduct(currentWallNormal, FVector::UpVector).GetSafeNormal();
+
+		if (FVector::DotProduct(tangentCrossProduct, tangentVelocity) < 0)
+		{
+			// Flip it if needed
+			tangentCrossProduct *= -1.f;
+		}
+
+		// Take the velocity of the cross product which is now pointing the same direction as us and add a boost
+		FVector forwardSpeedBoost = tangentCrossProduct * 500.f + FVector::UpVector * 400.f;
+
+		// Rotate the player to face the direction of movement based on where we WILL be
+		FRotator newRotation = (tangentCrossProduct + forwardSpeedBoost).GetSafeNormal().Rotation();
+		newRotation.Pitch = 0.f;
+		newRotation.Roll = 0.f;
+		SetActorRotation(newRotation);
+
+		// Apply the boost to the velocity along the tangent of the wall
+		charMove->Velocity = tangentVelocity + forwardSpeedBoost;
+
+		isWallrunning = true;
+		// Set the prior walls name to the current wall, Used to make sure you cant re-run on the same wall
+		previousWallName = currentWallObject->GetName();
 	}
-
-
-
-	// Take the velocity of the cross product which is now pointing the same direction as us and add a boost
-	FVector forwardSpeedBoost = tangentCrossProduct * 500.f+FVector::UpVector*400.f;
-
-	// Rotate the player to face the direction of movement based on where we WILL be
-	FRotator newRotation = (tangentCrossProduct + forwardSpeedBoost).GetSafeNormal().Rotation();
-	newRotation.Pitch = 0.f;
-	newRotation.Roll = 0.f;
-	SetActorRotation(newRotation);
-
-	// Apply the boost to the velocity along the tangent of the wall
-	charMove->Velocity = tangentVelocity + forwardSpeedBoost;
-
-	isWallrunning = true;
-
 }
-
-void AMGP_2526Character::MaintainWallRun()
-{
-	// Remove movement towards or away from the wall
-	FVector wallParallelVelocity = FVector::VectorPlaneProject(currentVelocity, currentWallNormal);
-	charMove->Velocity = wallParallelVelocity;
-}
-
-
 
 void AMGP_2526Character::EndWallRun()
 {
@@ -279,6 +255,12 @@ void AMGP_2526Character::WallJump(FVector wallNormal)
 	LaunchCharacter(launchDirection*launchStrength, false, false);
 	EndWallRun();
 }
+
+
+
+// +------------------------------------------------------------------------------------------------------------------------------+
+
+
 
 void AMGP_2526Character::Move(const FInputActionValue& Value)
 {
@@ -334,11 +316,12 @@ void AMGP_2526Character::DoLook(float Yaw, float Pitch)
 void AMGP_2526Character::DoJumpStart()
 {
 	// signal the character to jump
-
 	if (isWallrunning)
 	{
 		WallJump(currentWallNormal);
 	}
+
+
 
 	Jump();
 }
@@ -347,6 +330,4 @@ void AMGP_2526Character::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
-
-	// Reset the boolean to unblock certain processes
 }

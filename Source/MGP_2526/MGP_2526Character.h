@@ -39,7 +39,9 @@ class AMGP_2526Character : public ACharacter
 	// ----------------------------------------------- Custom Variables --------------------------------------------------------- //
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Character Controller Components", meta = (AllowPrivateAccess = "true"))
 	UCharacterMovementComponent* charMove;
-
+	FVector currentWallNormal;
+	FString previousWallName;
+	AActor* currentWallObject;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	int WallRunCheckDistance;
@@ -51,11 +53,6 @@ class AMGP_2526Character : public ACharacter
 	float launchStrength;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
-	bool isWallrunning;
-
-	FVector currentWallNormal;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	FVector currentVelocity;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
@@ -63,8 +60,15 @@ class AMGP_2526Character : public ACharacter
 
 
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
+	bool isWallrunning;
+
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	float currentSpeed;
+
+
+
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trace Variables", meta = (AllowPrivateAccess = "true"))
 	FVector traceStartingPosition;
@@ -125,8 +129,6 @@ protected:
 
 	// Pass in the Normal Vector of the collided plane that the player will run across, locks movement to only along that plane
 	virtual void WallRun(FVector wallNormal);
-
-	virtual void MaintainWallRun();
 
 	// Add a launch force to the player away from the wall
 	virtual void WallJump(FVector wallNormal);
