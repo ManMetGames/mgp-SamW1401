@@ -56,21 +56,40 @@ AMGP_2526Character::AMGP_2526Character()
 
 void AMGP_2526Character::Tick(float DeltaTime)
 {
-	// check yu need to enable ticking of the object
 	Super::Tick(DeltaTime);
+
+	// Check if they run off of the wall and end it
+	if (isWallrunning)
+	{
+		FCollisionQueryParams ignoreLinetraceParameters;
+		ignoreLinetraceParameters.AddIgnoredActor(this);
+		// Find the ending position based on where the wall normal is
+		FVector traceEndPosition = traceStartingPosition - (currentWallNormal * WallRunCheckDistance);
+		FHitResult wallStillHit;
+		bool isWallStillThere = GetWorld()->LineTraceSingleByChannel(wallStillHit, traceStartingPosition, traceEndPosition, ECC_GameTraceChannel2, ignoreLinetraceParameters);
+
+		// If there is no longer a wall
+		if (!isWallStillThere)
+		{
+			EndWallRun();
+		}
+	}
+
 
 	// Find the Velocity and Speed to determine wether or not the player has the speed for wallrunning, or to cancel a current wallrun
 	currentVelocity = GetCharacterMovement()->Velocity;
 	currentSpeed = currentVelocity.Size();
 
 	// ------------------------------------------- Wall Running -------------------------------------------
-	DetectWallsLineTrace();
+		DetectWallsLineTrace();
 	// -----------------------------------------------------------------------------------------------------
 }
 
 void AMGP_2526Character::BeginPlay()
 {
 	Super::BeginPlay();
+
+	previousWallName = "start";
 
 	WallRunCheckDistance = 75;
 
@@ -151,7 +170,7 @@ void AMGP_2526Character::DetectWallsLineTrace()
 	if (traceHitGrounded)
 	{
 		EndWallRun();
-		previousWallName = "grounded";
+		previousWallName = "none";
 	}
 
 	//Check when not grounded, if not grounded check if theres a wall to run on
@@ -201,10 +220,11 @@ void AMGP_2526Character::DetectWallsLineTrace()
 
 void AMGP_2526Character::WallRun(FVector wallNormal)
 {
+	// Check if the wall is still there
+
 	// Only do the wall run when the wall is not the same as the previous wall
 	if (previousWallName != currentWallObject->GetName())
 	{
-
 		// Set the current walls normal to whatever one was collided with
 		currentWallNormal = wallNormal.GetSafeNormal();
 
@@ -220,8 +240,9 @@ void AMGP_2526Character::WallRun(FVector wallNormal)
 			tangentCrossProduct *= -1.f;
 		}
 
+
 		// Take the velocity of the cross product which is now pointing the same direction as us and add a boost
-		FVector forwardSpeedBoost = tangentCrossProduct * 500.f + FVector::UpVector * 400.f;
+		FVector forwardSpeedBoost = tangentCrossProduct * 900.f + FVector::UpVector * 250.f;
 
 		// Rotate the player to face the direction of movement based on where we WILL be
 		FRotator newRotation = (tangentCrossProduct + forwardSpeedBoost).GetSafeNormal().Rotation();
@@ -229,12 +250,18 @@ void AMGP_2526Character::WallRun(FVector wallNormal)
 		newRotation.Roll = 0.f;
 		SetActorRotation(newRotation);
 
+		// Ensure the player doesnt carry any of their momentum into the wall run, makes sure they all feel the same
+		charMove->Velocity = FVector(0.f, 0.f, 0.f);
 		// Apply the boost to the velocity along the tangent of the wall
 		charMove->Velocity = tangentVelocity + forwardSpeedBoost;
 
 		isWallrunning = true;
 		// Set the prior walls name to the current wall, Used to make sure you cant re-run on the same wall
 		previousWallName = currentWallObject->GetName();
+	}
+	else
+	{
+		EndWallRun();
 	}
 }
 
