@@ -2,14 +2,18 @@
 
 #include "MGP_2526Character.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "CollisionQueryParams.h"
+#include "DrawDebugHelpers.h"
 #include "MGP_2526.h"
 
 AMGP_2526Character::AMGP_2526Character()
@@ -50,14 +54,219 @@ AMGP_2526Character::AMGP_2526Character()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+void AMGP_2526Character::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Check if they run off of the wall and end it
+	if (isWallrunning)
+	{
+		FCollisionQueryParams ignoreLinetraceParameters;
+		ignoreLinetraceParameters.AddIgnoredActor(this);
+		// Find the ending position based on where the wall normal is
+		FVector traceEndPosition = traceStartingPosition - (currentWallNormal * WallRunCheckDistance);
+		FHitResult wallStillHit;
+		bool isWallStillThere = GetWorld()->LineTraceSingleByChannel(wallStillHit, traceStartingPosition, traceEndPosition, ECC_GameTraceChannel2, ignoreLinetraceParameters);
+
+		// If there is no longer a wall
+		if (!isWallStillThere)
+		{
+			EndWallRun();
+		}
+	}
+
+
+	// give a global variable velocity, for use by various functions
+	currentVelocity = GetCharacterMovement()->Velocity;
+
+	DetectWallsLineTrace();
+}
+
+void AMGP_2526Character::BeginPlay()
+{
+	Super::BeginPlay();
+
+	previousWallName = "start";
+
+	WallRunCheckDistance = 75;
+
+	// Assign charMove to this actors Movement controller, saves me writing the function every time and makes it more efficient cause it doesnt have to run the function EVERY TIME
+	charMove = GetCharacterMovement();
+
+	// Grounded Friction - Base Values
+	// A factor that all friction coefficients are multiplied by to find the actual friction multiplier, lower = less
+	charMove->BrakingFrictionFactor = 0.1f;
+	charMove->GroundFriction = 2.5f;
+
+	// Air Friction - Base Values
+	charMove->FallingLateralFriction = 0.01f;
+	charMove->BrakingDecelerationFalling = 0.1f;
+
+	// Jumping Strength
+	charMove->JumpZVelocity = 650.f;
+
+	// Max Speed
+	charMove->MaxWalkSpeed  = 700.f;
+
+	isWallrunning = false;
+
+	launchStrength = 500.f;
+}
+
+// --------------------------------------------------------------------- WallRun Detection Line Trace ------------------------------------------------------------------------------
+void AMGP_2526Character::DetectWallsLineTrace()
+{
+	// Do Both line traces then put wether or not they hit into a boolean. Check both booleans, if either are true, wallrun on it, if both, check closest, if none, do nothing.
+
+	// Get Starting positions
+	traceStartingPosition = GetActorLocation();
+
+	// Copy the starting position and just move it down for grounded detection
+	FVector groundedEndVector = traceStartingPosition;
+	groundedEndVector.Z -= 93.f;
+
+	traceStartingPosition.Z += 25.f;
+
+	FVector rightVector = GetActorRightVector();
+	endPointRight = traceStartingPosition + (rightVector * WallRunCheckDistance);
+	// Subtract from the right to find the left, left does not have a get vector
+	endPointLeft = traceStartingPosition - (rightVector * WallRunCheckDistance);
+
+	// I know this should be done in the header, but the Unreal Header Tool really didnt like me putting it in there for some reason
+	FCollisionQueryParams ignoreLinetraceParameters;
+	// Ignore the player for the trace
+	ignoreLinetraceParameters.AddIgnoredActor(this);
+
+	traceHitGrounded = GetWorld()->LineTraceSingleByChannel(rayHitGrounded, traceStartingPosition, groundedEndVector, ECC_Visibility, ignoreLinetraceParameters);
+
+	if (traceHitGrounded)
+	{
+		EndWallRun();
+		previousWallName = "none";
+	}
+
+	//Check when not grounded, if not grounded check if theres a wall to run on
+	else if (!traceHitGrounded&&!isWallrunning)
+	{
+		// Game Trace channel 2 is the custom trace channel "WallRunTraceChannel"
+		traceHitRight = GetWorld()->LineTraceSingleByChannel(rayHitRight, traceStartingPosition, endPointRight, ECC_GameTraceChannel2, ignoreLinetraceParameters);
+		traceHitLeft = GetWorld()->LineTraceSingleByChannel(rayHitLeft, traceStartingPosition, endPointLeft, ECC_GameTraceChannel2, ignoreLinetraceParameters);
+
+
+	}
+
+	if ((traceHitRight && traceHitLeft) && !isWallrunning)
+	{
+		// Ray Hit results contain a variable called time, showing how far along they were when they collided. the smaller time would be the closer wall so if both collide, use the smaller time when passing it into the WallRunVector function
+		// Now Comes the complicated maths bit YAY
+		// pass the normal of the collided object, think of it like a vector that defines the plane of the wall and always points perpendicular to it ( Like always up )
+		if (rayHitRight.Time > rayHitLeft.Time)
+		{
+			currentWallObject = rayHitRight.GetActor();
+			WallRun(rayHitRight.ImpactNormal);
+		}
+		else if (rayHitLeft.Time>rayHitRight.Time)
+		{
+			currentWallObject = rayHitLeft.GetActor();
+			WallRun(rayHitLeft.ImpactNormal);
+		}
+	}
+	else if (traceHitRight&&!isWallrunning)
+	{
+		currentWallObject = rayHitRight.GetActor();
+		WallRun(rayHitRight.ImpactNormal);
+	}
+	else if (traceHitLeft&&!isWallrunning)
+	{
+		currentWallObject = rayHitLeft.GetActor();
+		WallRun(rayHitLeft.ImpactNormal);
+	}
+}
+
+
+
+
+// +------------------------------------------------------------------------------------------------------------------------------+
+
+
+
+void AMGP_2526Character::WallRun(FVector wallNormal)
+{
+	// Check if the wall is still there
+
+	// Only do the wall run when the wall is not the same as the previous wall
+	if (previousWallName != currentWallObject->GetName())
+	{
+		// Set the current walls normal to whatever one was collided with
+		currentWallNormal = wallNormal.GetSafeNormal();
+
+		// Get the velocity without movement into the wall
+		FVector tangentVelocity = FVector::VectorPlaneProject(currentVelocity, currentWallNormal);
+
+		// Get the cross product to figure out which direction along the normal we're moving
+		FVector tangentCrossProduct = FVector::CrossProduct(currentWallNormal, FVector::UpVector).GetSafeNormal();
+
+		if (FVector::DotProduct(tangentCrossProduct, tangentVelocity) < 0)
+		{
+			// Flip it if needed
+			tangentCrossProduct *= -1.f;
+		}
+
+
+		// Take the velocity of the cross product which is now pointing the same direction as us and add a boost
+		FVector forwardSpeedBoost = tangentCrossProduct * 900.f + FVector::UpVector * 250.f;
+
+		// Rotate the player to face the direction of movement based on where we WILL be
+		FRotator newRotation = (tangentCrossProduct + forwardSpeedBoost).GetSafeNormal().Rotation();
+		newRotation.Pitch = 0.f;
+		newRotation.Roll = 0.f;
+		SetActorRotation(newRotation);
+
+		// Ensure the player doesnt carry any of their momentum into the wall run, makes sure they all feel the same
+		charMove->Velocity = FVector(0.f, 0.f, 0.f);
+		// Apply the boost to the velocity along the tangent of the wall
+		charMove->Velocity = tangentVelocity + forwardSpeedBoost;
+
+		isWallrunning = true;
+		// Set the prior walls name to the current wall, Used to make sure you cant re-run on the same wall
+		previousWallName = currentWallObject->GetName();
+	}
+	else
+	{
+		EndWallRun();
+	}
+}
+
+void AMGP_2526Character::EndWallRun()
+{
+	// Reset all variables to allow another wall run to commence
+	isWallrunning = false;
+	charMove->bOrientRotationToMovement = true;
+	charMove->GravityScale = 1.f;
+}
+
+void AMGP_2526Character::WallJump(FVector wallNormal)
+{
+	// Move the player along the normal so they dont recollide with the same wall
+	SetActorLocation(GetActorLocation()+currentWallNormal*10);
+	FVector launchDirection = currentVelocity.GetClampedToMaxSize(1) + (wallNormal + FVector::UpVector * 1.f);
+	charMove->Velocity = FVector (0,0,0);
+	LaunchCharacter(launchDirection*launchStrength, false, false);
+	EndWallRun();
+}
+
+
+
+// +------------------------------------------------------------------------------------------------------------------------------+
+
 void AMGP_2526Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
+
 		// Jumping
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AMGP_2526Character::DoJumpStart);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AMGP_2526Character::DoJumpEnd);
 
 		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMGP_2526Character::Move);
@@ -92,21 +301,24 @@ void AMGP_2526Character::Look(const FInputActionValue& Value)
 
 void AMGP_2526Character::DoMove(float Right, float Forward)
 {
-	if (GetController() != nullptr)
+	if (!isWallrunning)
 	{
-		// find out which way is forward
-		const FRotator Rotation = GetController()->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
+		if (GetController() != nullptr)
+		{
+			// find out which way is forward
+			const FRotator Rotation = GetController()->GetControlRotation();
+			const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-		// get forward vector
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+			// get forward vector
+			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+			// get right vector 
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-		// add movement 
-		AddMovementInput(ForwardDirection, Forward);
-		AddMovementInput(RightDirection, Right);
+			// add movement 
+			AddMovementInput(ForwardDirection, Forward);
+			AddMovementInput(RightDirection, Right);
+		}
 	}
 }
 
@@ -123,6 +335,13 @@ void AMGP_2526Character::DoLook(float Yaw, float Pitch)
 void AMGP_2526Character::DoJumpStart()
 {
 	// signal the character to jump
+	if (isWallrunning)
+	{
+		WallJump(currentWallNormal);
+	}
+
+
+
 	Jump();
 }
 
