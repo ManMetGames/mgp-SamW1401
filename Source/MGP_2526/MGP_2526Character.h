@@ -26,15 +26,6 @@ class AMGP_2526Character : public ACharacter
 {
 	GENERATED_BODY()
 
-	/** Camera boom positioning the camera behind the character */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	USpringArmComponent* CameraBoom;
-
-	/** Follow camera */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	UCameraComponent* FollowCamera;
-
-
 
 	// ----------------------------------------------- Custom Variables --------------------------------------------------------- //
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Character Controller Components", meta = (AllowPrivateAccess = "true"))
@@ -94,6 +85,17 @@ class AMGP_2526Character : public ACharacter
 	bool traceHitGrounded;
 	// ------------------------------------------------------------------------------------------------------------------------------ //
 	
+
+	/** Camera boom positioning the camera behind the character */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* CameraBoom;
+
+	/** Follow camera */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UCameraComponent* FollowCamera;
+
+
+
 protected:
 
 	/** Jump Input Action */
