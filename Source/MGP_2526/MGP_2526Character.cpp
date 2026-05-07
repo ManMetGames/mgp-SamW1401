@@ -76,13 +76,10 @@ void AMGP_2526Character::Tick(float DeltaTime)
 	}
 
 
-	// Find the Velocity and Speed to determine wether or not the player has the speed for wallrunning, or to cancel a current wallrun
+	// give a global variable velocity, for use by various functions
 	currentVelocity = GetCharacterMovement()->Velocity;
-	currentSpeed = currentVelocity.Size();
 
-	// ------------------------------------------- Wall Running -------------------------------------------
-		DetectWallsLineTrace();
-	// -----------------------------------------------------------------------------------------------------
+	DetectWallsLineTrace();
 }
 
 void AMGP_2526Character::BeginPlay()
@@ -92,9 +89,6 @@ void AMGP_2526Character::BeginPlay()
 	previousWallName = "start";
 
 	WallRunCheckDistance = 75;
-
-	// Set the minimum speed high enough that you need to be moving sideways and cant just jump straight up
-	wallRunMinSpeed = 175;
 
 	// Assign charMove to this actors Movement controller, saves me writing the function every time and makes it more efficient cause it doesnt have to run the function EVERY TIME
 	charMove = GetCharacterMovement();

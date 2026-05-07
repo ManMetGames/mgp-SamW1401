@@ -51,9 +51,6 @@ class AMGP_2526Character : public ACharacter
 	int WallRunCheckDistance;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
-	float wallRunMinSpeed;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	float launchStrength;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
@@ -66,10 +63,6 @@ class AMGP_2526Character : public ACharacter
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
 	bool isWallrunning;
-
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Run Variables", meta = (AllowPrivateAccess = "true"))
-	float currentSpeed;
 
 
 
